@@ -315,12 +315,3 @@ board.addEventListener('touchend', (e) => {
         lastTapX = touch.clientX; lastTapY = touch.clientY; lastTapTime = currentTime;
     }
 });
-
-// Clear Board Functionality
-document.getElementById('clear-board-btn').onclick = () => {
-    if (confirm("Are you sure you want to clear the entire board? This cannot be undone.")) {
-        socket.emit('delete-all');
-    }
-};
-
-window.clearBoard = () => socket.emit('delete-all');
