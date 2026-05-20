@@ -1,5 +1,6 @@
 const socket = io();
 const board = document.getElementById('board');
+const addNoteBtn = document.getElementById('add-note-btn');
 const notes = new Map();
 
 const NOTE_COLORS = [
@@ -25,7 +26,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
     noteEl.style.transform = `rotate(${rotation}deg)`;
     noteEl.style.backgroundColor = color || NOTE_COLORS[0];
 
-    // Added drag handle for mobile scrolling compatibility
     const dragHandle = document.createElement('div');
     dragHandle.className = 'drag-handle';
 
@@ -78,7 +78,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
         const isResizeAction = e.target === resizeHandle;
         const isDragAction = e.target === dragHandle;
         
-        // If not dragging or resizing specifically, allow native scrolling
         if (!isDragAction && !isResizeAction) return;
 
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
@@ -98,7 +97,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
         
         noteEl.style.zIndex = 1000;
         noteEl.classList.add('active');
-        // Prevent default only if we are actually dragging/resizing
         if (e.cancelable) e.preventDefault(); 
     };
 
@@ -133,7 +131,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
         }
     };
 
-    // Listen on handle for drag, handle for resize
     noteEl.addEventListener('mousedown', onStart);
     noteEl.addEventListener('touchstart', onStart, { passive: false });
 
@@ -143,7 +140,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
     document.addEventListener('mouseup', onEnd);
     document.addEventListener('touchend', onEnd);
 
-    // Sync text changes
     textarea.addEventListener('input', () => {
         socket.emit('update-note', { id, text: textarea.value });
     });
@@ -217,32 +213,26 @@ function addNoteAt(clientX, clientY) {
     elements.textarea.focus();
 }
 
-// Improved Note Addition: Handle double click and long press separately from scroll
-let lastTap = 0;
-board.addEventListener('touchend', (e) => {
-    if (e.target !== board) return;
-    const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTap;
-    if (tapLength < 500 && tapLength > 0) {
-        const touch = e.changedTouches[0];
-        addNoteAt(touch.clientX, touch.clientY);
-        e.preventDefault();
-    }
-    lastTap = currentTime;
+// FAB Button functionality
+addNoteBtn.addEventListener('click', () => {
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    addNoteAt(centerX, centerY);
 });
 
+// Desktop double-click to add note
 board.addEventListener('dblclick', (e) => {
     if (e.target === board) addNoteAt(e.clientX, e.clientY);
 });
 
-// Mobile long press: Keep but increase delay to avoid accidental triggers during slow scrolling
+// Mobile long-press to add note
 let touchTimer;
 board.addEventListener('touchstart', (e) => {
     if (e.target !== board) return;
     const touch = e.touches[0];
     touchTimer = setTimeout(() => {
         addNoteAt(touch.clientX, touch.clientY);
-    }, 800); // Increased to 800ms
+    }, 800);
 }, { passive: true });
 
 board.addEventListener('touchend', () => clearTimeout(touchTimer));
