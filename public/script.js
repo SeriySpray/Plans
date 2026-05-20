@@ -10,8 +10,8 @@ const NOTE_COLORS = [
     '#ffcc99'  // Orange
 ];
 
-// Center view on start
-window.scrollTo(2500 - window.innerWidth / 2, 2500 - window.innerHeight / 2);
+// Center view on start (Board is now 3000x3000px)
+window.scrollTo(1500 - window.innerWidth / 2, 1500 - window.innerHeight / 2);
 
 // Helper to create a note element
 function createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus) {
@@ -202,8 +202,13 @@ socket.on('note-deleted', (id) => {
 // Helper to add note
 function addNoteAt(clientX, clientY, shouldFocus) {
     const id = crypto.randomUUID();
+    // Correct calculation for exact placement:
+    // clientX/Y are relative to viewport. 
+    // scrollX/Y are how much we've scrolled.
+    // 125 is half the default note width (250px) to center it.
     const x = clientX + window.scrollX - 125; 
     const y = clientY + window.scrollY - 125;
+    
     const rotation = Math.random() * 4 - 2;
     const color = NOTE_COLORS[0];
     const text = '';
@@ -228,7 +233,7 @@ board.addEventListener('mousedown', (e) => {
 
     if (timeDiff < 400 && dist < 30) {
         addNoteAt(e.clientX, e.clientY, true);
-        lastClickTime = 0; // Reset
+        lastClickTime = 0;
     } else {
         lastClickX = e.clientX;
         lastClickY = e.clientY;
@@ -236,7 +241,7 @@ board.addEventListener('mousedown', (e) => {
     }
 });
 
-// Double-tap for mobile with proximity check (no keyboard auto-open)
+// Double-tap for mobile with tighter proximity check
 let lastTapX = 0;
 let lastTapY = 0;
 let lastTapTime = 0;
@@ -248,8 +253,9 @@ board.addEventListener('touchend', (e) => {
     const touch = e.changedTouches[0];
     const dist = Math.sqrt(Math.pow(touch.clientX - lastTapX, 2) + Math.pow(touch.clientY - lastTapY, 2));
 
-    if (timeDiff < 500 && dist < 50) {
-        addNoteAt(touch.clientX, touch.clientY, false); // false = don't focus/open keyboard
+    // Tightened proximity from 50px to 25px for mobile
+    if (timeDiff < 500 && dist < 25) {
+        addNoteAt(touch.clientX, touch.clientY, false);
         e.preventDefault();
         lastTapTime = 0;
     } else {
