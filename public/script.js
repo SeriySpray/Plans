@@ -10,7 +10,7 @@ const NOTE_COLORS = [
     '#ffcc99'  // Orange
 ];
 
-// Center view on start (Board is now 3000x3000px)
+// Center view on start (Board is 3000x3000px)
 window.scrollTo(1500 - window.innerWidth / 2, 1500 - window.innerHeight / 2);
 
 // Helper to create a note element
@@ -82,6 +82,8 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
 
+        const rect = board.getBoundingClientRect();
+
         if (isResizeAction) {
             isResizing = true;
             startWidth = parseInt(document.defaultView.getComputedStyle(noteEl).width, 10);
@@ -90,8 +92,8 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             startY = clientY;
         } else {
             isDragging = true;
-            startX = clientX - noteEl.offsetLeft + window.scrollX;
-            startY = clientY - noteEl.offsetTop + window.scrollY;
+            startX = (clientX - rect.left) - noteEl.offsetLeft;
+            startY = (clientY - rect.top) - noteEl.offsetTop;
         }
         
         noteEl.style.zIndex = 1000;
@@ -112,8 +114,9 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             noteEl.style.height = `${newHeight}px`;
             socket.emit('update-note', { id, width: newWidth, height: newHeight });
         } else if (isDragging) {
-            const newX = clientX - startX + window.scrollX;
-            const newY = clientY - startY + window.scrollY;
+            const rect = board.getBoundingClientRect();
+            const newX = (clientX - rect.left) - startX;
+            const newY = (clientY - rect.top) - startY;
             noteEl.style.left = `${newX}px`;
             noteEl.style.top = `${newY}px`;
             socket.emit('update-note', { id, x: newX, y: newY });
@@ -202,12 +205,12 @@ socket.on('note-deleted', (id) => {
 // Helper to add note
 function addNoteAt(clientX, clientY, shouldFocus) {
     const id = crypto.randomUUID();
-    // Correct calculation for exact placement:
-    // clientX/Y are relative to viewport. 
-    // scrollX/Y are how much we've scrolled.
-    // 125 is half the default note width (250px) to center it.
-    const x = clientX + window.scrollX - 125; 
-    const y = clientY + window.scrollY - 125;
+    
+    // PRECISION FIX:
+    // Use getBoundingClientRect to get the board's exact position relative to the viewport
+    const rect = board.getBoundingClientRect();
+    const x = (clientX - rect.left) - 125;
+    const y = (clientY - rect.top) - 125;
     
     const rotation = Math.random() * 4 - 2;
     const color = NOTE_COLORS[0];
@@ -220,7 +223,7 @@ function addNoteAt(clientX, clientY, shouldFocus) {
     socket.emit('add-note', { id, text, x, y, rotation, color, width, height });
 }
 
-// Global dblclick with proximity check
+// Global click tracking for dblclick simulation
 let lastClickX = 0;
 let lastClickY = 0;
 let lastClickTime = 0;
@@ -241,7 +244,7 @@ board.addEventListener('mousedown', (e) => {
     }
 });
 
-// Double-tap for mobile with tighter proximity check
+// Double-tap for mobile
 let lastTapX = 0;
 let lastTapY = 0;
 let lastTapTime = 0;
@@ -253,7 +256,6 @@ board.addEventListener('touchend', (e) => {
     const touch = e.changedTouches[0];
     const dist = Math.sqrt(Math.pow(touch.clientX - lastTapX, 2) + Math.pow(touch.clientY - lastTapY, 2));
 
-    // Tightened proximity from 50px to 25px for mobile
     if (timeDiff < 500 && dist < 25) {
         addNoteAt(touch.clientX, touch.clientY, false);
         e.preventDefault();
