@@ -27,8 +27,9 @@ function createNoteElement(id, text, x, y, rotation, color) {
     const deleteBtn = document.createElement('div');
     deleteBtn.className = 'delete-btn';
     deleteBtn.innerHTML = '&times;';
-    deleteBtn.onclick = (e) => {
+    deleteBtn.ontouchstart = deleteBtn.onclick = (e) => {
         e.stopPropagation();
+        e.preventDefault();
         socket.emit('delete-note', id);
         removeNote(id);
     };
@@ -40,8 +41,9 @@ function createNoteElement(id, text, x, y, rotation, color) {
         const dot = document.createElement('div');
         dot.className = 'color-dot';
         dot.style.backgroundColor = c;
-        dot.onclick = (e) => {
+        dot.ontouchstart = dot.onclick = (e) => {
             e.stopPropagation();
+            e.preventDefault();
             noteEl.style.backgroundColor = c;
             socket.emit('update-note', { id, color: c });
         };
@@ -53,35 +55,54 @@ function createNoteElement(id, text, x, y, rotation, color) {
     noteEl.appendChild(textarea);
     board.appendChild(noteEl);
 
-    // Dragging logic
+    // Unified Dragging logic (Mouse + Touch)
     let isDragging = false;
     let startX, startY;
 
-    noteEl.addEventListener('mousedown', (e) => {
+    const onStart = (e) => {
         if (e.target === textarea || e.target === deleteBtn || e.target.classList.contains('color-dot')) return;
+        
         isDragging = true;
-        startX = e.clientX - noteEl.offsetLeft;
-        startY = e.clientY - noteEl.offsetTop;
+        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        
+        startX = clientX - noteEl.offsetLeft;
+        startY = clientY - noteEl.offsetTop;
         noteEl.style.zIndex = 1000;
-    });
+        noteEl.classList.add('active');
+    };
 
-    document.addEventListener('mousemove', (e) => {
+    const onMove = (e) => {
         if (!isDragging) return;
-        const newX = e.clientX - startX;
-        const newY = e.clientY - startY;
+        
+        const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        
+        const newX = clientX - startX;
+        const newY = clientY - startY;
         
         noteEl.style.left = `${newX}px`;
         noteEl.style.top = `${newY}px`;
 
         socket.emit('update-note', { id, x: newX, y: newY });
-    });
+    };
 
-    document.addEventListener('mouseup', () => {
+    const onEnd = () => {
         if (isDragging) {
             isDragging = false;
             noteEl.style.zIndex = '';
+            noteEl.classList.remove('active');
         }
-    });
+    };
+
+    noteEl.addEventListener('mousedown', onStart);
+    noteEl.addEventListener('touchstart', onStart, { passive: false });
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchend', onEnd);
 
     // Sync text changes
     textarea.addEventListener('input', () => {
@@ -136,22 +157,40 @@ socket.on('note-deleted', (id) => {
     removeNote(id);
 });
 
-// Create note on double click
-board.addEventListener('dblclick', (e) => {
-    if (e.target !== board) return;
-
+// Helper to add note
+function addNoteAt(clientX, clientY) {
     const id = crypto.randomUUID();
-    const x = e.clientX - 90; // center on cursor (half width)
-    const y = e.clientY - 90; // center on cursor (half height)
-    const rotation = Math.random() * 4 - 2; // -2 to 2 degrees
+    const x = clientX - 80; // center on cursor (approx half width)
+    const y = clientY - 80; // center on cursor (approx half height)
+    const rotation = Math.random() * 4 - 2;
     const color = NOTE_COLORS[0];
     const text = '';
 
     const elements = createNoteElement(id, text, x, y, rotation, color);
     notes.set(id, elements);
-
     socket.emit('add-note', { id, text, x, y, rotation, color });
-    
-    // Focus the new note
     elements.textarea.focus();
+}
+
+// Create note on double click/tap
+board.addEventListener('dblclick', (e) => {
+    if (e.target === board) addNoteAt(e.clientX, e.clientY);
+});
+
+// Mobile-friendly: Long press to add note
+let touchTimer;
+board.addEventListener('touchstart', (e) => {
+    if (e.target !== board) return;
+    const touch = e.touches[0];
+    touchTimer = setTimeout(() => {
+        addNoteAt(touch.clientX, touch.clientY);
+    }, 600);
+}, { passive: true });
+
+board.addEventListener('touchend', () => {
+    clearTimeout(touchTimer);
+});
+
+board.addEventListener('touchmove', () => {
+    clearTimeout(touchTimer);
 });

@@ -5,6 +5,7 @@ body, html {
     height: 100%;
     overflow: hidden;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    touch-action: none; /* Prevents browser handling of gestures like pinch-zoom on the board */
 }
 
 #board {
@@ -13,29 +14,31 @@ body, html {
     background-color: #2b3e31; /* Chalkboard green */
     background-image: 
         radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, transparent 80%),
-        url("https://www.transparenttextures.com/patterns/carbon-fibre.png"); /* Subtle texture */
+        url("https://www.transparenttextures.com/patterns/carbon-fibre.png");
     position: relative;
     box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
-    border: 15px solid #5d4037; /* Wooden frame */
+    border: 10px solid #5d4037; /* Slightly thinner frame for mobile */
     box-sizing: border-box;
 }
 
 #instructions {
     position: absolute;
-    top: 30px;
-    left: 30px;
+    top: 20px;
+    left: 20px;
+    right: 20px;
     color: rgba(255,255,255,0.5);
     pointer-events: none;
-    font-size: 16px;
+    font-size: 14px;
     font-family: 'Caveat', cursive;
+    text-align: center;
 }
 
 .sticky-note {
     position: absolute;
-    width: 180px;
-    height: 180px;
+    width: 160px; /* Slightly smaller for mobile */
+    height: 160px;
     background-color: #fdfd96;
-    padding: 15px;
+    padding: 10px;
     box-sizing: border-box;
     box-shadow: 2px 4px 10px rgba(0,0,0,0.3);
     cursor: grab;
@@ -43,6 +46,7 @@ body, html {
     flex-direction: column;
     transition: transform 0.1s ease, background-color 0.2s;
     user-select: none;
+    touch-action: none; /* Crucial for custom touch dragging */
 }
 
 .sticky-note:active {
@@ -58,7 +62,7 @@ body, html {
     width: 100%;
     height: 100%;
     font-family: 'Caveat', cursive;
-    font-size: 20px;
+    font-size: 18px;
     color: #333;
     outline: none;
     cursor: inherit;
@@ -67,54 +71,64 @@ body, html {
 
 .delete-btn {
     position: absolute;
-    top: 5px;
-    right: 5px;
-    width: 20px;
-    height: 20px;
-    background: rgba(0,0,0,0.1);
+    top: -10px;
+    right: -10px;
+    width: 24px;
+    height: 24px;
+    background: #ff4444;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 12px;
-    color: #666;
-    opacity: 0;
-    transition: opacity 0.2s;
+    font-size: 16px;
+    color: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 10;
 }
 
-.sticky-note:hover .delete-btn {
-    opacity: 1;
-}
-
-.delete-btn:hover {
-    background: rgba(255,0,0,0.2);
-    color: #cc0000;
-}
-
-/* Color Picker Styles */
+/* Color Picker Styles - More accessible for mobile */
 .color-picker {
     position: absolute;
-    bottom: 5px;
-    left: 5px;
+    bottom: -35px;
+    left: 0;
+    right: 0;
     display: flex;
-    gap: 5px;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.9);
+    padding: 5px;
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.2s;
 }
 
+.sticky-note.active .color-picker,
 .sticky-note:hover .color-picker {
     opacity: 1;
+    pointer-events: auto;
 }
 
 .color-dot {
-    width: 12px;
-    height: 12px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     cursor: pointer;
     border: 1px solid rgba(0,0,0,0.1);
 }
 
-.color-dot:hover {
-    transform: scale(1.2);
+/* Mobile Media Queries */
+@media (max-width: 600px) {
+    .sticky-note {
+        width: 140px;
+        height: 140px;
+    }
+    .sticky-note textarea {
+        font-size: 16px;
+    }
+    #instructions {
+        font-size: 12px;
+    }
 }
