@@ -10,16 +10,18 @@ const NOTE_COLORS = [
     '#ffcc99'  // Orange
 ];
 
-// Center the view on start
+// Center view on start
 window.scrollTo(2500 - window.innerWidth / 2, 2500 - window.innerHeight / 2);
 
 // Helper to create a note element
-function createNoteElement(id, text, x, y, rotation, color) {
+function createNoteElement(id, text, x, y, rotation, color, width, height) {
     const noteEl = document.createElement('div');
     noteEl.className = 'sticky-note';
     noteEl.id = id;
     noteEl.style.left = `${x}px`;
     noteEl.style.top = `${y}px`;
+    noteEl.style.width = `${width || 250}px`;
+    noteEl.style.height = `${height || 250}px`;
     noteEl.style.transform = `rotate(${rotation}deg)`;
     noteEl.style.backgroundColor = color || NOTE_COLORS[0];
 
@@ -36,6 +38,9 @@ function createNoteElement(id, text, x, y, rotation, color) {
         socket.emit('delete-note', id);
         removeNote(id);
     };
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'resize-handle';
 
     // Color picker
     const colorPicker = document.createElement('div');
@@ -54,47 +59,66 @@ function createNoteElement(id, text, x, y, rotation, color) {
     });
 
     noteEl.appendChild(deleteBtn);
+    noteEl.appendChild(resizeHandle);
     noteEl.appendChild(colorPicker);
     noteEl.appendChild(textarea);
     board.appendChild(noteEl);
 
-    // Unified Dragging logic
+    // Interaction State
     let isDragging = false;
-    let startX, startY;
+    let isResizing = false;
+    let startX, startY, startWidth, startHeight;
 
     const onStart = (e) => {
+        const isResizeAction = e.target === resizeHandle;
         if (e.target === textarea || e.target === deleteBtn || e.target.classList.contains('color-dot')) return;
         
-        isDragging = true;
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+        if (isResizeAction) {
+            isResizing = true;
+            startWidth = parseInt(document.defaultView.getComputedStyle(noteEl).width, 10);
+            startHeight = parseInt(document.defaultView.getComputedStyle(noteEl).height, 10);
+            startX = clientX;
+            startY = clientY;
+        } else {
+            isDragging = true;
+            startX = clientX - noteEl.offsetLeft + window.scrollX;
+            startY = clientY - noteEl.offsetTop + window.scrollY;
+        }
         
-        startX = clientX - noteEl.offsetLeft + window.scrollX;
-        startY = clientY - noteEl.offsetTop + window.scrollY;
         noteEl.style.zIndex = 1000;
         noteEl.classList.add('active');
         e.preventDefault();
     };
 
     const onMove = (e) => {
-        if (!isDragging) return;
+        if (!isDragging && !isResizing) return;
         
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-        
-        const newX = clientX - startX + window.scrollX;
-        const newY = clientY - startY + window.scrollY;
-        
-        noteEl.style.left = `${newX}px`;
-        noteEl.style.top = `${newY}px`;
 
-        socket.emit('update-note', { id, x: newX, y: newY });
+        if (isResizing) {
+            const newWidth = Math.max(150, startWidth + (clientX - startX));
+            const newHeight = Math.max(150, startHeight + (clientY - startY));
+            noteEl.style.width = `${newWidth}px`;
+            noteEl.style.height = `${newHeight}px`;
+            socket.emit('update-note', { id, width: newWidth, height: newHeight });
+        } else if (isDragging) {
+            const newX = clientX - startX + window.scrollX;
+            const newY = clientY - startY + window.scrollY;
+            noteEl.style.left = `${newX}px`;
+            noteEl.style.top = `${newY}px`;
+            socket.emit('update-note', { id, x: newX, y: newY });
+        }
         e.preventDefault();
     };
 
     const onEnd = () => {
-        if (isDragging) {
+        if (isDragging || isResizing) {
             isDragging = false;
+            isResizing = false;
             noteEl.style.zIndex = '';
             noteEl.classList.remove('active');
         }
@@ -128,16 +152,16 @@ function removeNote(id) {
 // Socket events
 socket.on('init-notes', (initialNotes) => {
     initialNotes.forEach(note => {
-        const { id, text, x, y, rotation, color } = note;
-        const elements = createNoteElement(id, text, x, y, rotation, color);
+        const { id, text, x, y, rotation, color, width, height } = note;
+        const elements = createNoteElement(id, text, x, y, rotation, color, width, height);
         notes.set(id, elements);
     });
 });
 
 socket.on('note-added', (note) => {
-    const { id, text, x, y, rotation, color } = note;
+    const { id, text, x, y, rotation, color, width, height } = note;
     if (!notes.has(id)) {
-        const elements = createNoteElement(id, text, x, y, rotation, color);
+        const elements = createNoteElement(id, text, x, y, rotation, color, width, height);
         notes.set(id, elements);
     }
 });
@@ -155,6 +179,10 @@ socket.on('note-updated', (data) => {
         if (data.color !== undefined) {
             note.noteEl.style.backgroundColor = data.color;
         }
+        if (data.width !== undefined && data.height !== undefined) {
+            note.noteEl.style.width = `${data.width}px`;
+            note.noteEl.style.height = `${data.height}px`;
+        }
     }
 });
 
@@ -165,25 +193,25 @@ socket.on('note-deleted', (id) => {
 // Helper to add note
 function addNoteAt(clientX, clientY) {
     const id = crypto.randomUUID();
-    // Correct for scroll position
     const x = clientX + window.scrollX - 125; 
     const y = clientY + window.scrollY - 125;
     const rotation = Math.random() * 4 - 2;
     const color = NOTE_COLORS[0];
     const text = '';
+    const width = 250;
+    const height = 250;
 
-    const elements = createNoteElement(id, text, x, y, rotation, color);
+    const elements = createNoteElement(id, text, x, y, rotation, color, width, height);
     notes.set(id, elements);
-    socket.emit('add-note', { id, text, x, y, rotation, color });
+    socket.emit('add-note', { id, text, x, y, rotation, color, width, height });
     elements.textarea.focus();
 }
 
-// Create note on double click/tap
+// Interactions
 board.addEventListener('dblclick', (e) => {
     if (e.target === board) addNoteAt(e.clientX, e.clientY);
 });
 
-// Mobile-friendly: Long press to add note
 let touchTimer;
 board.addEventListener('touchstart', (e) => {
     if (e.target !== board) return;
@@ -193,10 +221,5 @@ board.addEventListener('touchstart', (e) => {
     }, 600);
 }, { passive: true });
 
-board.addEventListener('touchend', () => {
-    clearTimeout(touchTimer);
-});
-
-board.addEventListener('touchmove', () => {
-    clearTimeout(touchTimer);
-});
+board.addEventListener('touchend', () => clearTimeout(touchTimer));
+board.addEventListener('touchmove', () => clearTimeout(touchTimer));

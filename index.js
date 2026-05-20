@@ -50,6 +50,12 @@ io.on('connection', async (socket) => {
     else socket.broadcast.emit('note-added', note);
   });
 
+// Database setup
+const db = new sqlite3?.Database ? null : null; // This is a placeholder as we use Supabase now, 
+// but I will update the Supabase logic below.
+
+// ... (in the io.on('connection') section)
+
   socket.on('update-note', async (data) => {
     const { id, ...updates } = data;
     const { error } = await supabase
