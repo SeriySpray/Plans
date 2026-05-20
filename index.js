@@ -45,9 +45,8 @@ io.on('connection', async (socket) => {
   }
 
   socket.on('add-note', async (note) => {
-    console.log('Adding note:', note.id);
+    console.log('--- ATTEMPTING TO INSERT NOTE ---', note.id);
     
-    // Ensure we only send valid columns to Supabase
     const noteToSave = {
       id: note.id,
       text: note.text || '',
@@ -60,19 +59,21 @@ io.on('connection', async (socket) => {
       z_index: note.z_index || 1000
     };
 
-    const { error: insertError } = await supabase
+    console.log('Payload:', noteToSave);
+
+    const { data, error: insertError } = await supabase
       .from('notes')
-      .insert([noteToSave]);
+      .insert([noteToSave])
+      .select();
 
     if (insertError) {
-      console.error('Insert Error for note', note.id, ':', insertError);
-      // Even if DB fails, let's broadcast so other users see it in current session
-      // This helps with "perceived" sync while debugging
-      socket.broadcast.emit('note-added', note); 
+      console.error('SUPABASE INSERT ERROR:', insertError.message, insertError.details, insertError.hint);
     } else {
-      console.log('Note saved successfully:', note.id);
-      socket.broadcast.emit('note-added', note);
+      console.log('SUPABASE INSERT SUCCESS. Row count:', data?.length);
     }
+    
+    // Always broadcast so users see it immediately
+    socket.broadcast.emit('note-added', note);
   });
 
   socket.on('update-note', async (data) => {
