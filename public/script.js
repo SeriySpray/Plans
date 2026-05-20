@@ -15,6 +15,14 @@ let globalMaxZ = 1000;
 // Center view on start
 window.scrollTo(1500 - window.innerWidth / 2, 1500 - window.innerHeight / 2);
 
+// Robust UUID fallback
+function generateId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
 // Helper to create a note element
 function createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus, zIndex) {
     const noteEl = document.createElement('div');
@@ -148,9 +156,8 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     noteEl.addEventListener('mousedown', onStart);
     noteEl.addEventListener('touchstart', onStart, { passive: false });
     
-    // Bring to front on click/tap too
-    noteEl.addEventListener('mousedown', bringToFront);
-    noteEl.addEventListener('touchstart', bringToFront);
+    // Bring to front on click/tap
+    noteEl.addEventListener('click', bringToFront);
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('touchmove', onMove, { passive: false });
@@ -179,10 +186,13 @@ function removeNote(id) {
 
 // Socket events
 socket.on('init-notes', (initialNotes) => {
+    if (!initialNotes) return;
     initialNotes.forEach(note => {
         const { id, text, x, y, rotation, color, width, height, z_index } = note;
-        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false, z_index);
-        notes.set(id, elements);
+        if (!notes.has(id)) {
+            const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false, z_index);
+            notes.set(id, elements);
+        }
     });
 });
 
@@ -224,24 +234,28 @@ socket.on('note-deleted', (id) => {
 
 // Helper to add note
 function addNoteAt(clientX, clientY, shouldFocus) {
-    const id = crypto.randomUUID();
-    const rect = board.getBoundingClientRect();
-    const x = (clientX - rect.left) - 125;
-    const y = (clientY - rect.top) - 125;
-    
-    const rotation = Math.random() * 4 - 2;
-    const color = NOTE_COLORS[0];
-    const text = '';
-    const width = 250;
-    const height = 250;
-    const z_index = ++globalMaxZ;
+    try {
+        const id = generateId();
+        const rect = board.getBoundingClientRect();
+        const x = (clientX - rect.left) - 125;
+        const y = (clientY - rect.top) - 125;
+        
+        const rotation = Math.random() * 4 - 2;
+        const color = NOTE_COLORS[0];
+        const text = '';
+        const width = 250;
+        const height = 250;
+        const z_index = ++globalMaxZ;
 
-    const elements = createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus, z_index);
-    notes.set(id, elements);
-    socket.emit('add-note', { id, text, x, y, rotation, color, width, height, z_index });
+        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus, z_index);
+        notes.set(id, elements);
+        socket.emit('add-note', { id, text, x, y, rotation, color, width, height, z_index });
+    } catch (e) {
+        console.error("Error creating note:", e);
+    }
 }
 
-// Global click tracking for dblclick simulation
+// Simulation of dblclick for better accuracy
 let lastClickX = 0;
 let lastClickY = 0;
 let lastClickTime = 0;
