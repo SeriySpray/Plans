@@ -5,23 +5,31 @@ body, html {
     height: 100%;
     overflow: auto;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #5d4037;
-    /* Allow native scrolling/panning by default */
+    background-color: #3e2723; /* Darker, richer wood color for background */
     touch-action: pan-x pan-y; 
 }
 
 #board {
     width: 5000px;
     height: 5000px;
-    background-color: #1e3a2a; 
+    /* Deep, high-quality chalkboard green */
+    background-color: #1a2f23; 
+    /* High-resolution subtle chalkboard textures */
     background-image: 
-        url("https://www.transparenttextures.com/patterns/asfalt-dark.png"),
-        url("https://www.transparenttextures.com/patterns/black-paper.png"),
-        radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 70%);
-    background-blend-mode: multiply;
+        /* Fine chalk dust / slate texture */
+        url("https://www.transparenttextures.com/patterns/dust.png"),
+        /* Subtle paper-like grain for organic feel */
+        url("https://www.transparenttextures.com/patterns/stardust.png"),
+        /* Soft lighting from the center */
+        radial-gradient(circle at center, rgba(255,255,255,0.08) 0%, transparent 80%);
+    background-blend-mode: soft-light;
     position: relative;
-    box-shadow: inset 0 0 150px rgba(0,0,0,0.6);
-    border: 25px solid #5d4037;
+    box-shadow: inset 0 0 100px rgba(0,0,0,0.7);
+    /* Slim, elegant wooden border */
+    border: 8px solid #3e2723; 
+    /* Subtle inner "lip" to the frame */
+    outline: 2px solid rgba(0,0,0,0.3);
+    outline-offset: -10px;
     box-sizing: border-box;
 }
 
@@ -30,19 +38,18 @@ body, html {
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
-    color: rgba(255,255,255,0.8);
+    color: rgba(255,255,255,0.9);
     pointer-events: none;
     font-size: 16px;
     font-family: 'Caveat', cursive;
     text-align: center;
-    background: rgba(0,0,0,0.4);
-    padding: 8px 20px;
-    border-radius: 30px;
+    background: rgba(0,0,0,0.5);
+    padding: 10px 25px;
+    border-radius: 50px;
     z-index: 2000;
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255,255,255,0.1);
-    width: auto;
-    max-width: 90%;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 
 .sticky-note {
@@ -54,29 +61,23 @@ body, html {
     background-color: #fdfd96;
     padding: 20px;
     box-sizing: border-box;
-    box-shadow: 4px 8px 20px rgba(0,0,0,0.5);
+    box-shadow: 5px 10px 25px rgba(0,0,0,0.4);
     display: flex;
     flex-direction: column;
     transition: transform 0.1s ease, background-color 0.2s;
     user-select: none;
-    /* Allow scrolling even when touch starts on note, unless dragging via handle */
     touch-action: pan-x pan-y; 
 }
 
-/* Drag Handle */
 .drag-handle {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    height: 40px;
-    background: rgba(0,0,0,0.05);
+    height: 45px;
+    background: rgba(0,0,0,0.04);
     cursor: grab;
-    border-radius: 0 0 5px 5px;
-}
-
-.sticky-note:active .drag-handle {
-    cursor: grabbing;
+    border-radius: 0 0 4px 4px;
 }
 
 .sticky-note textarea {
@@ -85,10 +86,10 @@ body, html {
     resize: none;
     width: 100%;
     height: 100%;
-    margin-top: 20px; /* Space for drag handle */
+    margin-top: 25px;
     font-family: 'Caveat', cursive;
     font-size: 28px;
-    color: #333;
+    color: #2c2c2c;
     outline: none;
     line-height: 1.1;
     overflow: hidden;
@@ -96,45 +97,46 @@ body, html {
 
 .delete-btn {
     position: absolute;
-    top: -15px;
-    right: -15px;
-    width: 40px;
-    height: 40px;
-    background: #ff4444;
+    top: -12px;
+    right: -12px;
+    width: 36px;
+    height: 36px;
+    background: #e53935;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 26px;
+    font-size: 24px;
     color: white;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     z-index: 10;
+    border: 2px solid white;
 }
 
 .resize-handle {
     position: absolute;
     bottom: 0;
     right: 0;
-    width: 40px;
-    height: 40px;
+    width: 35px;
+    height: 35px;
     cursor: nwse-resize;
-    background: linear-gradient(135deg, transparent 60%, rgba(0,0,0,0.15) 60%);
+    background: linear-gradient(135deg, transparent 65%, rgba(0,0,0,0.12) 65%);
     z-index: 5;
 }
 
 .color-picker {
     position: absolute;
-    bottom: -65px;
+    bottom: -60px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     justify-content: center;
-    gap: 15px;
-    background: rgba(255,255,255,0.98);
-    padding: 12px;
-    border-radius: 35px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    gap: 12px;
+    background: rgba(255,255,255,0.95);
+    padding: 10px;
+    border-radius: 30px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.25);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s;
@@ -147,11 +149,11 @@ body, html {
 }
 
 .color-dot {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     cursor: pointer;
-    border: 2px solid rgba(0,0,0,0.1);
+    border: 2px solid rgba(0,0,0,0.08);
 }
 
 @media (max-width: 600px) {
@@ -163,6 +165,9 @@ body, html {
         font-size: 24px;
     }
     .drag-handle {
-        height: 50px; /* Larger for easier grabbing on mobile */
+        height: 55px;
+    }
+    #board {
+        border: 4px solid #3e2723;
     }
 }
