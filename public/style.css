@@ -6,27 +6,23 @@ body, html {
     overflow: auto;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #5d4037;
+    /* Allow native scrolling/panning by default */
+    touch-action: pan-x pan-y; 
 }
 
 #board {
     width: 5000px;
     height: 5000px;
-    /* Real chalkboard green color */
     background-color: #1e3a2a; 
-    /* Combining multiple textures for a realistic chalk effect */
     background-image: 
-        /* Subtle "chalk dust" noise texture */
         url("https://www.transparenttextures.com/patterns/asfalt-dark.png"),
-        /* Faded scratches and dust */
         url("https://www.transparenttextures.com/patterns/black-paper.png"),
-        /* Large radial gradient for depth/lighting */
         radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 70%);
     background-blend-mode: multiply;
     position: relative;
     box-shadow: inset 0 0 150px rgba(0,0,0,0.6);
     border: 25px solid #5d4037;
     box-sizing: border-box;
-    cursor: crosshair;
 }
 
 #instructions {
@@ -36,7 +32,7 @@ body, html {
     transform: translateX(-50%);
     color: rgba(255,255,255,0.8);
     pointer-events: none;
-    font-size: 18px;
+    font-size: 16px;
     font-family: 'Caveat', cursive;
     text-align: center;
     background: rgba(0,0,0,0.4);
@@ -45,6 +41,8 @@ body, html {
     z-index: 2000;
     backdrop-filter: blur(5px);
     border: 1px solid rgba(255,255,255,0.1);
+    width: auto;
+    max-width: 90%;
 }
 
 .sticky-note {
@@ -57,18 +55,28 @@ body, html {
     padding: 20px;
     box-sizing: border-box;
     box-shadow: 4px 8px 20px rgba(0,0,0,0.5);
-    cursor: grab;
     display: flex;
     flex-direction: column;
     transition: transform 0.1s ease, background-color 0.2s;
     user-select: none;
-    touch-action: none;
+    /* Allow scrolling even when touch starts on note, unless dragging via handle */
+    touch-action: pan-x pan-y; 
 }
 
-.sticky-note:active {
+/* Drag Handle */
+.drag-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background: rgba(0,0,0,0.05);
+    cursor: grab;
+    border-radius: 0 0 5px 5px;
+}
+
+.sticky-note:active .drag-handle {
     cursor: grabbing;
-    box-shadow: 12px 20px 40px rgba(0,0,0,0.6);
-    z-index: 1000;
 }
 
 .sticky-note textarea {
@@ -77,11 +85,11 @@ body, html {
     resize: none;
     width: 100%;
     height: 100%;
+    margin-top: 20px; /* Space for drag handle */
     font-family: 'Caveat', cursive;
     font-size: 28px;
     color: #333;
     outline: none;
-    cursor: inherit;
     line-height: 1.1;
     overflow: hidden;
 }
@@ -153,5 +161,8 @@ body, html {
     }
     .sticky-note textarea {
         font-size: 24px;
+    }
+    .drag-handle {
+        height: 50px; /* Larger for easier grabbing on mobile */
     }
 }

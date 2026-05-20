@@ -25,6 +25,10 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
     noteEl.style.transform = `rotate(${rotation}deg)`;
     noteEl.style.backgroundColor = color || NOTE_COLORS[0];
 
+    // Added drag handle for mobile scrolling compatibility
+    const dragHandle = document.createElement('div');
+    dragHandle.className = 'drag-handle';
+
     const textarea = document.createElement('textarea');
     textarea.value = text || '';
     textarea.placeholder = 'Type...';
@@ -58,6 +62,7 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
         colorPicker.appendChild(dot);
     });
 
+    noteEl.appendChild(dragHandle);
     noteEl.appendChild(deleteBtn);
     noteEl.appendChild(resizeHandle);
     noteEl.appendChild(colorPicker);
@@ -71,8 +76,11 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
 
     const onStart = (e) => {
         const isResizeAction = e.target === resizeHandle;
-        if (e.target === textarea || e.target === deleteBtn || e.target.classList.contains('color-dot')) return;
+        const isDragAction = e.target === dragHandle;
         
+        // If not dragging or resizing specifically, allow native scrolling
+        if (!isDragAction && !isResizeAction) return;
+
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
 
@@ -90,7 +98,8 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
         
         noteEl.style.zIndex = 1000;
         noteEl.classList.add('active');
-        e.preventDefault();
+        // Prevent default only if we are actually dragging/resizing
+        if (e.cancelable) e.preventDefault(); 
     };
 
     const onMove = (e) => {
@@ -112,7 +121,7 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
             noteEl.style.top = `${newY}px`;
             socket.emit('update-note', { id, x: newX, y: newY });
         }
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
     };
 
     const onEnd = () => {
@@ -124,6 +133,7 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
         }
     };
 
+    // Listen on handle for drag, handle for resize
     noteEl.addEventListener('mousedown', onStart);
     noteEl.addEventListener('touchstart', onStart, { passive: false });
 
@@ -207,18 +217,32 @@ function addNoteAt(clientX, clientY) {
     elements.textarea.focus();
 }
 
-// Interactions
+// Improved Note Addition: Handle double click and long press separately from scroll
+let lastTap = 0;
+board.addEventListener('touchend', (e) => {
+    if (e.target !== board) return;
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTap;
+    if (tapLength < 500 && tapLength > 0) {
+        const touch = e.changedTouches[0];
+        addNoteAt(touch.clientX, touch.clientY);
+        e.preventDefault();
+    }
+    lastTap = currentTime;
+});
+
 board.addEventListener('dblclick', (e) => {
     if (e.target === board) addNoteAt(e.clientX, e.clientY);
 });
 
+// Mobile long press: Keep but increase delay to avoid accidental triggers during slow scrolling
 let touchTimer;
 board.addEventListener('touchstart', (e) => {
     if (e.target !== board) return;
     const touch = e.touches[0];
     touchTimer = setTimeout(() => {
         addNoteAt(touch.clientX, touch.clientY);
-    }, 600);
+    }, 800); // Increased to 800ms
 }, { passive: true });
 
 board.addEventListener('touchend', () => clearTimeout(touchTimer));
