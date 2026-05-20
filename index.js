@@ -17,12 +17,11 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 
-// Supabase setup
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("ERROR: SUPABASE_URL and SUPABASE_ANON_KEY must be set in .env file");
+  console.error("CRITICAL ERROR: SUPABASE_URL and SUPABASE_ANON_KEY must be set!");
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -31,48 +30,86 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 io.on('connection', async (socket) => {
-  console.log('A user connected:', socket.id);
+  console.log('User connected:', socket.id);
 
-  // Send existing notes to the new user
-  const { data: initialNotes, error } = await supabase
+  // Fetch initial notes
+  const { data: initialNotes, error: fetchError } = await supabase
     .from('notes')
     .select('*');
 
-  if (error) console.error('Error fetching notes:', error);
-  else socket.emit('init-notes', initialNotes);
+  if (fetchError) {
+    console.error('Fetch Error:', fetchError);
+  } else {
+    console.log(`Sending ${initialNotes?.length || 0} notes to ${socket.id}`);
+    socket.emit('init-notes', initialNotes);
+  }
 
   socket.on('add-note', async (note) => {
-    const { error } = await supabase
-      .from('notes')
-      .insert([note]);
+    console.log('Adding note:', note.id);
+    
+    // Ensure we only send valid columns to Supabase
+    const noteToSave = {
+      id: note.id,
+      text: note.text || '',
+      x: note.x,
+      y: note.y,
+      rotation: note.rotation || 0,
+      color: note.color,
+      width: note.width || 250,
+      height: note.height || 250,
+      z_index: note.z_index || 1000
+    };
 
-    if (error) console.error('Error adding note:', error);
-    else socket.broadcast.emit('note-added', note);
+    const { error: insertError } = await supabase
+      .from('notes')
+      .insert([noteToSave]);
+
+    if (insertError) {
+      console.error('Insert Error for note', note.id, ':', insertError);
+      // Even if DB fails, let's broadcast so other users see it in current session
+      // This helps with "perceived" sync while debugging
+      socket.broadcast.emit('note-added', note); 
+    } else {
+      console.log('Note saved successfully:', note.id);
+      socket.broadcast.emit('note-added', note);
+    }
   });
 
   socket.on('update-note', async (data) => {
     const { id, ...updates } = data;
-    const { error } = await supabase
+    
+    // Safety: Filter updates to prevent DB errors if client sends extra fields
+    const validFields = ['text', 'x', 'y', 'color', 'width', 'height', 'z_index'];
+    const filteredUpdates = {};
+    Object.keys(updates).forEach(key => {
+      if (validFields.includes(key)) filteredUpdates[key] = updates[key];
+    });
+
+    const { error: updateError } = await supabase
       .from('notes')
-      .update(updates)
+      .update(filteredUpdates)
       .eq('id', id);
 
-    if (error) console.error('Error updating note:', error);
-    else socket.broadcast.emit('note-updated', data);
+    if (updateError) {
+      console.error('Update Error:', updateError);
+    }
+    
+    // Always broadcast update to others for real-time feel
+    socket.broadcast.emit('note-updated', data);
   });
 
   socket.on('delete-note', async (id) => {
-    const { error } = await supabase
+    const { error: deleteError } = await supabase
       .from('notes')
       .delete()
       .eq('id', id);
 
-    if (error) console.error('Error deleting note:', error);
-    else socket.broadcast.emit('note-deleted', id);
+    if (deleteError) console.error('Delete Error:', deleteError);
+    socket.broadcast.emit('note-deleted', id);
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected');
+    console.log('User disconnected:', socket.id);
   });
 });
 

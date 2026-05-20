@@ -12,10 +12,11 @@ const NOTE_COLORS = [
 
 let globalMaxZ = 1000;
 
+console.log("Collaborative Whiteboard initialized.");
+
 // Center view on start
 window.scrollTo(1500 - window.innerWidth / 2, 1500 - window.innerHeight / 2);
 
-// Robust UUID fallback
 function generateId() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
@@ -35,7 +36,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     noteEl.style.transform = `rotate(${rotation}deg)`;
     noteEl.style.backgroundColor = color || NOTE_COLORS[0];
     
-    // Set initial Z-Index
     const currentZ = zIndex || ++globalMaxZ;
     noteEl.style.zIndex = currentZ;
     if (currentZ > globalMaxZ) globalMaxZ = currentZ;
@@ -82,7 +82,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     noteEl.appendChild(textarea);
     board.appendChild(noteEl);
 
-    // Interaction State
     let isDragging = false;
     let isResizing = false;
     let startX, startY, startWidth, startHeight;
@@ -96,14 +95,11 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     const onStart = (e) => {
         const isResizeAction = e.target === resizeHandle;
         const isDragAction = e.target === dragHandle;
-        
         if (!isDragAction && !isResizeAction) return;
 
         bringToFront();
-
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-
         const rect = board.getBoundingClientRect();
 
         if (isResizeAction) {
@@ -117,14 +113,12 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             startX = (clientX - rect.left) - noteEl.offsetLeft;
             startY = (clientY - rect.top) - noteEl.offsetTop;
         }
-        
         noteEl.classList.add('active');
         if (e.cancelable) e.preventDefault(); 
     };
 
     const onMove = (e) => {
         if (!isDragging && !isResizing) return;
-        
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
 
@@ -155,13 +149,9 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
 
     noteEl.addEventListener('mousedown', onStart);
     noteEl.addEventListener('touchstart', onStart, { passive: false });
-    
-    // Bring to front on click/tap
     noteEl.addEventListener('click', bringToFront);
-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('touchmove', onMove, { passive: false });
-
     document.addEventListener('mouseup', onEnd);
     document.addEventListener('touchend', onEnd);
 
@@ -169,10 +159,7 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
         socket.emit('update-note', { id, text: textarea.value });
     });
 
-    if (shouldFocus) {
-        textarea.focus();
-    }
-
+    if (shouldFocus) textarea.focus();
     return { noteEl, textarea };
 }
 
@@ -185,22 +172,24 @@ function removeNote(id) {
 }
 
 // Socket events
+socket.on('connect', () => console.log("Connected to server via WebSocket"));
+
 socket.on('init-notes', (initialNotes) => {
+    console.log("Initializing notes:", initialNotes?.length || 0);
     if (!initialNotes) return;
     initialNotes.forEach(note => {
-        const { id, text, x, y, rotation, color, width, height, z_index } = note;
-        if (!notes.has(id)) {
-            const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false, z_index);
-            notes.set(id, elements);
+        if (!notes.has(note.id)) {
+            const elements = createNoteElement(note.id, note.text, note.x, note.y, note.rotation, note.color, note.width, note.height, false, note.z_index);
+            notes.set(note.id, elements);
         }
     });
 });
 
 socket.on('note-added', (note) => {
-    const { id, text, x, y, rotation, color, width, height, z_index } = note;
-    if (!notes.has(id)) {
-        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false, z_index);
-        notes.set(id, elements);
+    console.log("Remote note added:", note.id);
+    if (!notes.has(note.id)) {
+        const elements = createNoteElement(note.id, note.text, note.x, note.y, note.rotation, note.color, note.width, note.height, false, note.z_index);
+        notes.set(note.id, elements);
     }
 });
 
@@ -211,12 +200,8 @@ socket.on('note-updated', (data) => {
             note.noteEl.style.left = `${data.x}px`;
             note.noteEl.style.top = `${data.y}px`;
         }
-        if (data.text !== undefined) {
-            note.textarea.value = data.text;
-        }
-        if (data.color !== undefined) {
-            note.noteEl.style.backgroundColor = data.color;
-        }
+        if (data.text !== undefined) note.textarea.value = data.text;
+        if (data.color !== undefined) note.noteEl.style.backgroundColor = data.color;
         if (data.width !== undefined && data.height !== undefined) {
             note.noteEl.style.width = `${data.width}px`;
             note.noteEl.style.height = `${data.height}px`;
@@ -229,72 +214,59 @@ socket.on('note-updated', (data) => {
 });
 
 socket.on('note-deleted', (id) => {
+    console.log("Remote note deleted:", id);
     removeNote(id);
 });
 
-// Helper to add note
 function addNoteAt(clientX, clientY, shouldFocus) {
-    try {
-        const id = generateId();
-        const rect = board.getBoundingClientRect();
-        const x = (clientX - rect.left) - 125;
-        const y = (clientY - rect.top) - 125;
-        
-        const rotation = Math.random() * 4 - 2;
-        const color = NOTE_COLORS[0];
-        const text = '';
-        const width = 250;
-        const height = 250;
-        const z_index = ++globalMaxZ;
+    const id = generateId();
+    const rect = board.getBoundingClientRect();
+    const x = (clientX - rect.left) - 125;
+    const y = (clientY - rect.top) - 125;
+    const note = {
+        id,
+        text: '',
+        x,
+        y,
+        rotation: Math.random() * 4 - 2,
+        color: NOTE_COLORS[0],
+        width: 250,
+        height: 250,
+        z_index: ++globalMaxZ
+    };
 
-        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus, z_index);
-        notes.set(id, elements);
-        socket.emit('add-note', { id, text, x, y, rotation, color, width, height, z_index });
-    } catch (e) {
-        console.error("Error creating note:", e);
-    }
+    const elements = createNoteElement(note.id, note.text, note.x, note.y, note.rotation, note.color, note.width, note.height, shouldFocus, note.z_index);
+    notes.set(note.id, elements);
+    console.log("Emitting add-note:", id);
+    socket.emit('add-note', note);
 }
 
-// Simulation of dblclick for better accuracy
-let lastClickX = 0;
-let lastClickY = 0;
-let lastClickTime = 0;
-
+let lastClickX = 0, lastClickY = 0, lastClickTime = 0;
 board.addEventListener('mousedown', (e) => {
     if (e.target !== board) return;
     const currentTime = new Date().getTime();
     const timeDiff = currentTime - lastClickTime;
     const dist = Math.sqrt(Math.pow(e.clientX - lastClickX, 2) + Math.pow(e.clientY - lastClickY, 2));
-
     if (timeDiff < 400 && dist < 30) {
         addNoteAt(e.clientX, e.clientY, true);
         lastClickTime = 0;
     } else {
-        lastClickX = e.clientX;
-        lastClickY = e.clientY;
-        lastClickTime = currentTime;
+        lastClickX = e.clientX; lastClickY = e.clientY; lastClickTime = currentTime;
     }
 });
 
-// Double-tap for mobile
-let lastTapX = 0;
-let lastTapY = 0;
-let lastTapTime = 0;
-
+let lastTapX = 0, lastTapY = 0, lastTapTime = 0;
 board.addEventListener('touchend', (e) => {
     if (e.target !== board) return;
     const currentTime = new Date().getTime();
     const timeDiff = currentTime - lastTapTime;
     const touch = e.changedTouches[0];
     const dist = Math.sqrt(Math.pow(touch.clientX - lastTapX, 2) + Math.pow(touch.clientY - lastTapY, 2));
-
     if (timeDiff < 500 && dist < 25) {
         addNoteAt(touch.clientX, touch.clientY, false);
         e.preventDefault();
         lastTapTime = 0;
     } else {
-        lastTapX = touch.clientX;
-        lastTapY = touch.clientY;
-        lastTapTime = currentTime;
+        lastTapX = touch.clientX; lastTapY = touch.clientY; lastTapTime = currentTime;
     }
 });
