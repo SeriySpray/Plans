@@ -214,7 +214,8 @@ function addNoteAt(clientX, clientY) {
 }
 
 // FAB Button functionality
-addNoteBtn.addEventListener('click', () => {
+addNoteBtn.addEventListener('click', (e) => {
+    e.preventDefault();
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
     addNoteAt(centerX, centerY);
@@ -225,15 +226,5 @@ board.addEventListener('dblclick', (e) => {
     if (e.target === board) addNoteAt(e.clientX, e.clientY);
 });
 
-// Mobile long-press to add note
-let touchTimer;
-board.addEventListener('touchstart', (e) => {
-    if (e.target !== board) return;
-    const touch = e.touches[0];
-    touchTimer = setTimeout(() => {
-        addNoteAt(touch.clientX, touch.clientY);
-    }, 800);
-}, { passive: true });
-
-board.addEventListener('touchend', () => clearTimeout(touchTimer));
-board.addEventListener('touchmove', () => clearTimeout(touchTimer));
+// Note: Long-press and double-tap on mobile removed to prevent lag and accidental triggers.
+// Use the "+" button to add notes on mobile.
