@@ -109,6 +109,20 @@ io.on('connection', async (socket) => {
     socket.broadcast.emit('note-deleted', id);
   });
 
+  socket.on('delete-all', async () => {
+    console.log('User requested to DELETE ALL notes');
+    const { error } = await supabase
+      .from('notes')
+      .delete()
+      .neq('id', '0'); // Delete all rows
+
+    if (error) {
+      console.error('Delete All Error:', error);
+    } else {
+      io.emit('notes-cleared');
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });

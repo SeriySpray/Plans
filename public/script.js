@@ -11,8 +11,10 @@ const NOTE_COLORS = [
 ];
 
 let globalMaxZ = 1000;
+const BOARD_WIDTH = 3000;
+const BOARD_HEIGHT = 3000;
 
-// Throttling helper to limit sync events frequency (approx 30fps)
+// Throttling helper
 function throttle(func, limit) {
     let inThrottle;
     return function() {
@@ -27,13 +29,10 @@ function throttle(func, limit) {
 }
 
 // Center view on start
-window.scrollTo(1500 - window.innerWidth / 2, 1500 - window.innerHeight / 2);
+window.scrollTo(BOARD_WIDTH/2 - window.innerWidth / 2, BOARD_HEIGHT/2 - window.innerHeight / 2);
 
 function generateId() {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
 }
 
 // Helper to create a note element
@@ -41,10 +40,17 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     const noteEl = document.createElement('div');
     noteEl.className = 'sticky-note';
     noteEl.id = id;
-    noteEl.style.left = `${x}px`;
-    noteEl.style.top = `${y}px`;
-    noteEl.style.width = `${width || 250}px`;
-    noteEl.style.height = `${height || 250}px`;
+    
+    // Initial Clamping for Safety
+    const safeWidth = width || 250;
+    const safeHeight = height || 250;
+    const safeX = Math.min(Math.max(0, x), BOARD_WIDTH - safeWidth);
+    const safeY = Math.min(Math.max(0, y), BOARD_HEIGHT - safeHeight);
+
+    noteEl.style.left = `${safeX}px`;
+    noteEl.style.top = `${safeY}px`;
+    noteEl.style.width = `${safeWidth}px`;
+    noteEl.style.height = `${safeHeight}px`;
     noteEl.style.transform = `rotate(${rotation}deg)`;
     noteEl.style.backgroundColor = color || NOTE_COLORS[0];
     
@@ -62,9 +68,8 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     const deleteBtn = document.createElement('div');
     deleteBtn.className = 'delete-btn';
     deleteBtn.innerHTML = '&times;';
-    deleteBtn.ontouchstart = deleteBtn.onclick = (e) => {
+    deleteBtn.onclick = (e) => {
         e.stopPropagation();
-        e.preventDefault();
         socket.emit('delete-note', id);
         removeNote(id);
     };
@@ -78,9 +83,8 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
         const dot = document.createElement('div');
         dot.className = 'color-dot';
         dot.style.backgroundColor = c;
-        dot.ontouchstart = dot.onclick = (e) => {
+        dot.onclick = (e) => {
             e.stopPropagation();
-            e.preventDefault();
             noteEl.style.backgroundColor = c;
             socket.emit('update-note', { id, color: c });
         };
@@ -104,10 +108,9 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
         socket.emit('update-note', { id, z_index: newZ });
     };
 
-    // Throttled sync for movement and resizing
     const syncUpdates = throttle((data) => {
         socket.emit('update-note', data);
-    }, 40); // Max 25 updates per second for smoothness
+    }, 40);
 
     const onStart = (e) => {
         const isResizeAction = e.target === resizeHandle;
@@ -121,8 +124,8 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
 
         if (isResizeAction) {
             isResizing = true;
-            startWidth = parseInt(document.defaultView.getComputedStyle(noteEl).width, 10);
-            startHeight = parseInt(document.defaultView.getComputedStyle(noteEl).height, 10);
+            startWidth = noteEl.offsetWidth;
+            startHeight = noteEl.offsetHeight;
             startX = clientX;
             startY = clientY;
         } else {
@@ -141,15 +144,27 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
 
         if (isResizing) {
-            const newWidth = Math.max(150, startWidth + (clientX - startX));
-            const newHeight = Math.max(150, startHeight + (clientY - startY));
+            // Clamp size so it doesn't go off board
+            let newWidth = Math.max(150, startWidth + (clientX - startX));
+            let newHeight = Math.max(150, startHeight + (clientY - startY));
+            
+            // Limit width by board edge
+            if (noteEl.offsetLeft + newWidth > BOARD_WIDTH) newWidth = BOARD_WIDTH - noteEl.offsetLeft;
+            // Limit height by board edge
+            if (noteEl.offsetTop + newHeight > BOARD_HEIGHT) newHeight = BOARD_HEIGHT - noteEl.offsetTop;
+
             noteEl.style.width = `${newWidth}px`;
             noteEl.style.height = `${newHeight}px`;
             syncUpdates({ id, width: newWidth, height: newHeight });
         } else if (isDragging) {
             const rect = board.getBoundingClientRect();
-            const newX = (clientX - rect.left) - startX;
-            const newY = (clientY - rect.top) - startY;
+            let newX = (clientX - rect.left) - startX;
+            let newY = (clientY - rect.top) - startY;
+            
+            // CLAMPING POSITION
+            newX = Math.min(Math.max(0, newX), BOARD_WIDTH - noteEl.offsetWidth);
+            newY = Math.min(Math.max(0, newY), BOARD_HEIGHT - noteEl.offsetHeight);
+
             noteEl.style.left = `${newX}px`;
             noteEl.style.top = `${newY}px`;
             syncUpdates({ id, x: newX, y: newY });
@@ -162,13 +177,13 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             isDragging = false;
             isResizing = false;
             noteEl.classList.remove('active');
-            // Final sync to ensure position is perfectly saved in DB
-            const finalData = { id };
-            if (noteEl.offsetLeft) finalData.x = noteEl.offsetLeft;
-            if (noteEl.offsetTop) finalData.y = noteEl.offsetTop;
-            if (noteEl.offsetWidth) finalData.width = noteEl.offsetWidth;
-            if (noteEl.offsetHeight) finalData.height = noteEl.offsetHeight;
-            socket.emit('update-note', finalData);
+            socket.emit('update-note', { 
+                id, 
+                x: noteEl.offsetLeft, 
+                y: noteEl.offsetTop,
+                width: noteEl.offsetWidth,
+                height: noteEl.offsetHeight
+            });
         }
     };
 
@@ -217,9 +232,7 @@ socket.on('note-added', (note) => {
 socket.on('note-updated', (data) => {
     const note = notes.get(data.id);
     if (note) {
-        // Apply smooth transition only for remote updates
         note.noteEl.style.transition = 'left 0.15s linear, top 0.15s linear, width 0.15s linear, height 0.15s linear, background-color 0.2s';
-        
         if (data.x !== undefined && data.y !== undefined) {
             note.noteEl.style.left = `${data.x}px`;
             note.noteEl.style.top = `${data.y}px`;
@@ -234,8 +247,6 @@ socket.on('note-updated', (data) => {
             note.noteEl.style.zIndex = data.z_index;
             if (data.z_index > globalMaxZ) globalMaxZ = data.z_index;
         }
-
-        // Remove transition after some time so local drag remains instant
         setTimeout(() => {
             if (!note.noteEl.classList.contains('active')) {
                 note.noteEl.style.transition = 'transform 0.1s ease, background-color 0.2s';
@@ -244,15 +255,21 @@ socket.on('note-updated', (data) => {
     }
 });
 
-socket.on('note-deleted', (id) => {
-    removeNote(id);
+socket.on('note-deleted', (id) => removeNote(id));
+socket.on('notes-cleared', () => {
+    notes.forEach((_, id) => removeNote(id));
 });
 
 function addNoteAt(clientX, clientY, shouldFocus) {
     const id = generateId();
     const rect = board.getBoundingClientRect();
-    const x = (clientX - rect.left) - 125;
-    const y = (clientY - rect.top) - 125;
+    
+    // CLAMPING CREATION
+    let x = (clientX - rect.left) - 125;
+    let y = (clientY - rect.top) - 125;
+    x = Math.min(Math.max(0, x), BOARD_WIDTH - 250);
+    y = Math.min(Math.max(0, y), BOARD_HEIGHT - 250);
+
     const note = {
         id, text: '', x, y,
         rotation: Math.random() * 4 - 2,
@@ -260,11 +277,13 @@ function addNoteAt(clientX, clientY, shouldFocus) {
         width: 250, height: 250,
         z_index: ++globalMaxZ
     };
+
     const elements = createNoteElement(note.id, note.text, note.x, note.y, note.rotation, note.color, note.width, note.height, shouldFocus, note.z_index);
     notes.set(note.id, elements);
     socket.emit('add-note', note);
 }
 
+// SIMULATE DBLCLICK for accuracy
 let lastClickX = 0, lastClickY = 0, lastClickTime = 0;
 board.addEventListener('mousedown', (e) => {
     if (e.target !== board) return;
@@ -279,6 +298,7 @@ board.addEventListener('mousedown', (e) => {
     }
 });
 
+// MOBILE DOUBLE TAP with proximity check (NO KEYBOARD AUTO-OPEN)
 let lastTapX = 0, lastTapY = 0, lastTapTime = 0;
 board.addEventListener('touchend', (e) => {
     if (e.target !== board) return;
@@ -286,6 +306,7 @@ board.addEventListener('touchend', (e) => {
     const timeDiff = currentTime - lastTapTime;
     const touch = e.changedTouches[0];
     const dist = Math.sqrt(Math.pow(touch.clientX - lastTapX, 2) + Math.pow(touch.clientY - lastTapY, 2));
+
     if (timeDiff < 500 && dist < 25) {
         addNoteAt(touch.clientX, touch.clientY, false);
         e.preventDefault();
@@ -294,3 +315,12 @@ board.addEventListener('touchend', (e) => {
         lastTapX = touch.clientX; lastTapY = touch.clientY; lastTapTime = currentTime;
     }
 });
+
+// Clear Board Functionality
+document.getElementById('clear-board-btn').onclick = () => {
+    if (confirm("Are you sure you want to clear the entire board? This cannot be undone.")) {
+        socket.emit('delete-all');
+    }
+};
+
+window.clearBoard = () => socket.emit('delete-all');
