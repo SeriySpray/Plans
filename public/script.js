@@ -1,6 +1,5 @@
 const socket = io();
 const board = document.getElementById('board');
-const addNoteBtn = document.getElementById('add-note-btn');
 const notes = new Map();
 
 const NOTE_COLORS = [
@@ -213,18 +212,23 @@ function addNoteAt(clientX, clientY) {
     elements.textarea.focus();
 }
 
-// FAB Button functionality
-addNoteBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    addNoteAt(centerX, centerY);
-});
-
-// Desktop double-click to add note
+// RESTORED: Double-click to add note on PC
 board.addEventListener('dblclick', (e) => {
-    if (e.target === board) addNoteAt(e.clientX, e.clientY);
+    if (e.target === board) {
+        addNoteAt(e.clientX, e.clientY);
+    }
 });
 
-// Note: Long-press and double-tap on mobile removed to prevent lag and accidental triggers.
-// Use the "+" button to add notes on mobile.
+// RESTORED: Double-tap to add note on mobile
+let lastTap = 0;
+board.addEventListener('touchend', (e) => {
+    if (e.target !== board) return;
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTap;
+    if (tapLength < 500 && tapLength > 0) {
+        const touch = e.changedTouches[0];
+        addNoteAt(touch.clientX, touch.clientY);
+        e.preventDefault();
+    }
+    lastTap = currentTime;
+});
