@@ -12,7 +12,19 @@ const NOTE_COLORS = [
 
 let globalMaxZ = 1000;
 
-console.log("Collaborative Whiteboard initialized.");
+// Throttling helper to limit sync events frequency (approx 30fps)
+function throttle(func, limit) {
+    let inThrottle;
+    return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+            func.apply(context, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    }
+}
 
 // Center view on start
 window.scrollTo(1500 - window.innerWidth / 2, 1500 - window.innerHeight / 2);
@@ -92,6 +104,11 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
         socket.emit('update-note', { id, z_index: newZ });
     };
 
+    // Throttled sync for movement and resizing
+    const syncUpdates = throttle((data) => {
+        socket.emit('update-note', data);
+    }, 40); // Max 25 updates per second for smoothness
+
     const onStart = (e) => {
         const isResizeAction = e.target === resizeHandle;
         const isDragAction = e.target === dragHandle;
@@ -113,6 +130,7 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             startX = (clientX - rect.left) - noteEl.offsetLeft;
             startY = (clientY - rect.top) - noteEl.offsetTop;
         }
+        
         noteEl.classList.add('active');
         if (e.cancelable) e.preventDefault(); 
     };
@@ -127,14 +145,14 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             const newHeight = Math.max(150, startHeight + (clientY - startY));
             noteEl.style.width = `${newWidth}px`;
             noteEl.style.height = `${newHeight}px`;
-            socket.emit('update-note', { id, width: newWidth, height: newHeight });
+            syncUpdates({ id, width: newWidth, height: newHeight });
         } else if (isDragging) {
             const rect = board.getBoundingClientRect();
             const newX = (clientX - rect.left) - startX;
             const newY = (clientY - rect.top) - startY;
             noteEl.style.left = `${newX}px`;
             noteEl.style.top = `${newY}px`;
-            socket.emit('update-note', { id, x: newX, y: newY });
+            syncUpdates({ id, x: newX, y: newY });
         }
         if (e.cancelable) e.preventDefault();
     };
@@ -144,6 +162,13 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             isDragging = false;
             isResizing = false;
             noteEl.classList.remove('active');
+            // Final sync to ensure position is perfectly saved in DB
+            const finalData = { id };
+            if (noteEl.offsetLeft) finalData.x = noteEl.offsetLeft;
+            if (noteEl.offsetTop) finalData.y = noteEl.offsetTop;
+            if (noteEl.offsetWidth) finalData.width = noteEl.offsetWidth;
+            if (noteEl.offsetHeight) finalData.height = noteEl.offsetHeight;
+            socket.emit('update-note', finalData);
         }
     };
 
@@ -155,9 +180,9 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     document.addEventListener('mouseup', onEnd);
     document.addEventListener('touchend', onEnd);
 
-    textarea.addEventListener('input', () => {
+    textarea.addEventListener('input', throttle(() => {
         socket.emit('update-note', { id, text: textarea.value });
-    });
+    }, 200));
 
     if (shouldFocus) textarea.focus();
     return { noteEl, textarea };
@@ -172,10 +197,7 @@ function removeNote(id) {
 }
 
 // Socket events
-socket.on('connect', () => console.log("Connected to server via WebSocket"));
-
 socket.on('init-notes', (initialNotes) => {
-    console.log("Initializing notes:", initialNotes?.length || 0);
     if (!initialNotes) return;
     initialNotes.forEach(note => {
         if (!notes.has(note.id)) {
@@ -186,7 +208,6 @@ socket.on('init-notes', (initialNotes) => {
 });
 
 socket.on('note-added', (note) => {
-    console.log("Remote note added:", note.id);
     if (!notes.has(note.id)) {
         const elements = createNoteElement(note.id, note.text, note.x, note.y, note.rotation, note.color, note.width, note.height, false, note.z_index);
         notes.set(note.id, elements);
@@ -196,6 +217,9 @@ socket.on('note-added', (note) => {
 socket.on('note-updated', (data) => {
     const note = notes.get(data.id);
     if (note) {
+        // Apply smooth transition only for remote updates
+        note.noteEl.style.transition = 'left 0.15s linear, top 0.15s linear, width 0.15s linear, height 0.15s linear, background-color 0.2s';
+        
         if (data.x !== undefined && data.y !== undefined) {
             note.noteEl.style.left = `${data.x}px`;
             note.noteEl.style.top = `${data.y}px`;
@@ -210,11 +234,17 @@ socket.on('note-updated', (data) => {
             note.noteEl.style.zIndex = data.z_index;
             if (data.z_index > globalMaxZ) globalMaxZ = data.z_index;
         }
+
+        // Remove transition after some time so local drag remains instant
+        setTimeout(() => {
+            if (!note.noteEl.classList.contains('active')) {
+                note.noteEl.style.transition = 'transform 0.1s ease, background-color 0.2s';
+            }
+        }, 160);
     }
 });
 
 socket.on('note-deleted', (id) => {
-    console.log("Remote note deleted:", id);
     removeNote(id);
 });
 
@@ -224,20 +254,14 @@ function addNoteAt(clientX, clientY, shouldFocus) {
     const x = (clientX - rect.left) - 125;
     const y = (clientY - rect.top) - 125;
     const note = {
-        id,
-        text: '',
-        x,
-        y,
+        id, text: '', x, y,
         rotation: Math.random() * 4 - 2,
         color: NOTE_COLORS[0],
-        width: 250,
-        height: 250,
+        width: 250, height: 250,
         z_index: ++globalMaxZ
     };
-
     const elements = createNoteElement(note.id, note.text, note.x, note.y, note.rotation, note.color, note.width, note.height, shouldFocus, note.z_index);
     notes.set(note.id, elements);
-    console.log("Emitting add-note:", id);
     socket.emit('add-note', note);
 }
 
