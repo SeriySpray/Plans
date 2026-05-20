@@ -10,6 +10,9 @@ const NOTE_COLORS = [
     '#ffcc99'  // Orange
 ];
 
+// Center the view on start
+window.scrollTo(2500 - window.innerWidth / 2, 2500 - window.innerHeight / 2);
+
 // Helper to create a note element
 function createNoteElement(id, text, x, y, rotation, color) {
     const noteEl = document.createElement('div');
@@ -22,7 +25,7 @@ function createNoteElement(id, text, x, y, rotation, color) {
 
     const textarea = document.createElement('textarea');
     textarea.value = text || '';
-    textarea.placeholder = 'Type here...';
+    textarea.placeholder = 'Type...';
 
     const deleteBtn = document.createElement('div');
     deleteBtn.className = 'delete-btn';
@@ -55,7 +58,7 @@ function createNoteElement(id, text, x, y, rotation, color) {
     noteEl.appendChild(textarea);
     board.appendChild(noteEl);
 
-    // Unified Dragging logic (Mouse + Touch)
+    // Unified Dragging logic
     let isDragging = false;
     let startX, startY;
 
@@ -66,10 +69,11 @@ function createNoteElement(id, text, x, y, rotation, color) {
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
         
-        startX = clientX - noteEl.offsetLeft;
-        startY = clientY - noteEl.offsetTop;
+        startX = clientX - noteEl.offsetLeft + window.scrollX;
+        startY = clientY - noteEl.offsetTop + window.scrollY;
         noteEl.style.zIndex = 1000;
         noteEl.classList.add('active');
+        e.preventDefault();
     };
 
     const onMove = (e) => {
@@ -78,13 +82,14 @@ function createNoteElement(id, text, x, y, rotation, color) {
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
         
-        const newX = clientX - startX;
-        const newY = clientY - startY;
+        const newX = clientX - startX + window.scrollX;
+        const newY = clientY - startY + window.scrollY;
         
         noteEl.style.left = `${newX}px`;
         noteEl.style.top = `${newY}px`;
 
         socket.emit('update-note', { id, x: newX, y: newY });
+        e.preventDefault();
     };
 
     const onEnd = () => {
@@ -160,8 +165,9 @@ socket.on('note-deleted', (id) => {
 // Helper to add note
 function addNoteAt(clientX, clientY) {
     const id = crypto.randomUUID();
-    const x = clientX - 80; // center on cursor (approx half width)
-    const y = clientY - 80; // center on cursor (approx half height)
+    // Correct for scroll position
+    const x = clientX + window.scrollX - 125; 
+    const y = clientY + window.scrollY - 125;
     const rotation = Math.random() * 4 - 2;
     const color = NOTE_COLORS[0];
     const text = '';
