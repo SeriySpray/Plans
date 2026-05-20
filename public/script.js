@@ -10,11 +10,13 @@ const NOTE_COLORS = [
     '#ffcc99'  // Orange
 ];
 
-// Center view on start (Board is 3000x3000px)
+let globalMaxZ = 1000;
+
+// Center view on start
 window.scrollTo(1500 - window.innerWidth / 2, 1500 - window.innerHeight / 2);
 
 // Helper to create a note element
-function createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus) {
+function createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus, zIndex) {
     const noteEl = document.createElement('div');
     noteEl.className = 'sticky-note';
     noteEl.id = id;
@@ -24,6 +26,11 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     noteEl.style.height = `${height || 250}px`;
     noteEl.style.transform = `rotate(${rotation}deg)`;
     noteEl.style.backgroundColor = color || NOTE_COLORS[0];
+    
+    // Set initial Z-Index
+    const currentZ = zIndex || ++globalMaxZ;
+    noteEl.style.zIndex = currentZ;
+    if (currentZ > globalMaxZ) globalMaxZ = currentZ;
 
     const dragHandle = document.createElement('div');
     dragHandle.className = 'drag-handle';
@@ -45,7 +52,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'resize-handle';
 
-    // Color picker
     const colorPicker = document.createElement('div');
     colorPicker.className = 'color-picker';
     NOTE_COLORS.forEach(c => {
@@ -73,11 +79,19 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
     let isResizing = false;
     let startX, startY, startWidth, startHeight;
 
+    const bringToFront = () => {
+        const newZ = ++globalMaxZ;
+        noteEl.style.zIndex = newZ;
+        socket.emit('update-note', { id, z_index: newZ });
+    };
+
     const onStart = (e) => {
         const isResizeAction = e.target === resizeHandle;
         const isDragAction = e.target === dragHandle;
         
         if (!isDragAction && !isResizeAction) return;
+
+        bringToFront();
 
         const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
@@ -96,7 +110,6 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
             startY = (clientY - rect.top) - noteEl.offsetTop;
         }
         
-        noteEl.style.zIndex = 1000;
         noteEl.classList.add('active');
         if (e.cancelable) e.preventDefault(); 
     };
@@ -128,13 +141,16 @@ function createNoteElement(id, text, x, y, rotation, color, width, height, shoul
         if (isDragging || isResizing) {
             isDragging = false;
             isResizing = false;
-            noteEl.style.zIndex = '';
             noteEl.classList.remove('active');
         }
     };
 
     noteEl.addEventListener('mousedown', onStart);
     noteEl.addEventListener('touchstart', onStart, { passive: false });
+    
+    // Bring to front on click/tap too
+    noteEl.addEventListener('mousedown', bringToFront);
+    noteEl.addEventListener('touchstart', bringToFront);
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('touchmove', onMove, { passive: false });
@@ -164,16 +180,16 @@ function removeNote(id) {
 // Socket events
 socket.on('init-notes', (initialNotes) => {
     initialNotes.forEach(note => {
-        const { id, text, x, y, rotation, color, width, height } = note;
-        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false);
+        const { id, text, x, y, rotation, color, width, height, z_index } = note;
+        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false, z_index);
         notes.set(id, elements);
     });
 });
 
 socket.on('note-added', (note) => {
-    const { id, text, x, y, rotation, color, width, height } = note;
+    const { id, text, x, y, rotation, color, width, height, z_index } = note;
     if (!notes.has(id)) {
-        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false);
+        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false, z_index);
         notes.set(id, elements);
     }
 });
@@ -195,6 +211,10 @@ socket.on('note-updated', (data) => {
             note.noteEl.style.width = `${data.width}px`;
             note.noteEl.style.height = `${data.height}px`;
         }
+        if (data.z_index !== undefined) {
+            note.noteEl.style.zIndex = data.z_index;
+            if (data.z_index > globalMaxZ) globalMaxZ = data.z_index;
+        }
     }
 });
 
@@ -205,9 +225,6 @@ socket.on('note-deleted', (id) => {
 // Helper to add note
 function addNoteAt(clientX, clientY, shouldFocus) {
     const id = crypto.randomUUID();
-    
-    // PRECISION FIX:
-    // Use getBoundingClientRect to get the board's exact position relative to the viewport
     const rect = board.getBoundingClientRect();
     const x = (clientX - rect.left) - 125;
     const y = (clientY - rect.top) - 125;
@@ -217,10 +234,11 @@ function addNoteAt(clientX, clientY, shouldFocus) {
     const text = '';
     const width = 250;
     const height = 250;
+    const z_index = ++globalMaxZ;
 
-    const elements = createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus);
+    const elements = createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus, z_index);
     notes.set(id, elements);
-    socket.emit('add-note', { id, text, x, y, rotation, color, width, height });
+    socket.emit('add-note', { id, text, x, y, rotation, color, width, height, z_index });
 }
 
 // Global click tracking for dblclick simulation
