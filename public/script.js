@@ -14,7 +14,7 @@ const NOTE_COLORS = [
 window.scrollTo(2500 - window.innerWidth / 2, 2500 - window.innerHeight / 2);
 
 // Helper to create a note element
-function createNoteElement(id, text, x, y, rotation, color, width, height) {
+function createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus) {
     const noteEl = document.createElement('div');
     noteEl.className = 'sticky-note';
     noteEl.id = id;
@@ -143,6 +143,10 @@ function createNoteElement(id, text, x, y, rotation, color, width, height) {
         socket.emit('update-note', { id, text: textarea.value });
     });
 
+    if (shouldFocus) {
+        textarea.focus();
+    }
+
     return { noteEl, textarea };
 }
 
@@ -158,7 +162,7 @@ function removeNote(id) {
 socket.on('init-notes', (initialNotes) => {
     initialNotes.forEach(note => {
         const { id, text, x, y, rotation, color, width, height } = note;
-        const elements = createNoteElement(id, text, x, y, rotation, color, width, height);
+        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false);
         notes.set(id, elements);
     });
 });
@@ -166,7 +170,7 @@ socket.on('init-notes', (initialNotes) => {
 socket.on('note-added', (note) => {
     const { id, text, x, y, rotation, color, width, height } = note;
     if (!notes.has(id)) {
-        const elements = createNoteElement(id, text, x, y, rotation, color, width, height);
+        const elements = createNoteElement(id, text, x, y, rotation, color, width, height, false);
         notes.set(id, elements);
     }
 });
@@ -196,7 +200,7 @@ socket.on('note-deleted', (id) => {
 });
 
 // Helper to add note
-function addNoteAt(clientX, clientY) {
+function addNoteAt(clientX, clientY, shouldFocus) {
     const id = crypto.randomUUID();
     const x = clientX + window.scrollX - 125; 
     const y = clientY + window.scrollY - 125;
@@ -206,29 +210,51 @@ function addNoteAt(clientX, clientY) {
     const width = 250;
     const height = 250;
 
-    const elements = createNoteElement(id, text, x, y, rotation, color, width, height);
+    const elements = createNoteElement(id, text, x, y, rotation, color, width, height, shouldFocus);
     notes.set(id, elements);
     socket.emit('add-note', { id, text, x, y, rotation, color, width, height });
-    elements.textarea.focus();
 }
 
-// RESTORED: Double-click to add note on PC
-board.addEventListener('dblclick', (e) => {
-    if (e.target === board) {
-        addNoteAt(e.clientX, e.clientY);
+// Global dblclick with proximity check
+let lastClickX = 0;
+let lastClickY = 0;
+let lastClickTime = 0;
+
+board.addEventListener('mousedown', (e) => {
+    if (e.target !== board) return;
+    const currentTime = new Date().getTime();
+    const timeDiff = currentTime - lastClickTime;
+    const dist = Math.sqrt(Math.pow(e.clientX - lastClickX, 2) + Math.pow(e.clientY - lastClickY, 2));
+
+    if (timeDiff < 400 && dist < 30) {
+        addNoteAt(e.clientX, e.clientY, true);
+        lastClickTime = 0; // Reset
+    } else {
+        lastClickX = e.clientX;
+        lastClickY = e.clientY;
+        lastClickTime = currentTime;
     }
 });
 
-// RESTORED: Double-tap to add note on mobile
-let lastTap = 0;
+// Double-tap for mobile with proximity check (no keyboard auto-open)
+let lastTapX = 0;
+let lastTapY = 0;
+let lastTapTime = 0;
+
 board.addEventListener('touchend', (e) => {
     if (e.target !== board) return;
     const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTap;
-    if (tapLength < 500 && tapLength > 0) {
-        const touch = e.changedTouches[0];
-        addNoteAt(touch.clientX, touch.clientY);
+    const timeDiff = currentTime - lastTapTime;
+    const touch = e.changedTouches[0];
+    const dist = Math.sqrt(Math.pow(touch.clientX - lastTapX, 2) + Math.pow(touch.clientY - lastTapY, 2));
+
+    if (timeDiff < 500 && dist < 50) {
+        addNoteAt(touch.clientX, touch.clientY, false); // false = don't focus/open keyboard
         e.preventDefault();
+        lastTapTime = 0;
+    } else {
+        lastTapX = touch.clientX;
+        lastTapY = touch.clientY;
+        lastTapTime = currentTime;
     }
-    lastTap = currentTime;
 });
