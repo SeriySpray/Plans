@@ -1,0 +1,120 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#board {
+    width: 100vw;
+    height: 100vh;
+    background-color: #2b3e31; /* Chalkboard green */
+    background-image: 
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, transparent 80%),
+        url("https://www.transparenttextures.com/patterns/carbon-fibre.png"); /* Subtle texture */
+    position: relative;
+    box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
+    border: 15px solid #5d4037; /* Wooden frame */
+    box-sizing: border-box;
+}
+
+#instructions {
+    position: absolute;
+    top: 30px;
+    left: 30px;
+    color: rgba(255,255,255,0.5);
+    pointer-events: none;
+    font-size: 16px;
+    font-family: 'Caveat', cursive;
+}
+
+.sticky-note {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    background-color: #fdfd96;
+    padding: 15px;
+    box-sizing: border-box;
+    box-shadow: 2px 4px 10px rgba(0,0,0,0.3);
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.1s ease, background-color 0.2s;
+    user-select: none;
+}
+
+.sticky-note:active {
+    cursor: grabbing;
+    box-shadow: 4px 8px 20px rgba(0,0,0,0.4);
+    z-index: 1000;
+}
+
+.sticky-note textarea {
+    background: transparent;
+    border: none;
+    resize: none;
+    width: 100%;
+    height: 100%;
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    color: #333;
+    outline: none;
+    cursor: inherit;
+    line-height: 1.2;
+}
+
+.delete-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    background: rgba(0,0,0,0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    color: #666;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.sticky-note:hover .delete-btn {
+    opacity: 1;
+}
+
+.delete-btn:hover {
+    background: rgba(255,0,0,0.2);
+    color: #cc0000;
+}
+
+/* Color Picker Styles */
+.color-picker {
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    display: flex;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.sticky-note:hover .color-picker {
+    opacity: 1;
+}
+
+.color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.color-dot:hover {
+    transform: scale(1.2);
+}
